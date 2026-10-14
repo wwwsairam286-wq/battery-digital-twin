@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A GENERATIVE DIGITAL TWIN FRAMEWORK FOR LITHIUM-ION BATTERY AGING PREDICTION</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#10183a; --panel:rgba(26,36,82,.72); --panel2:rgba(46,60,120,.55); --line:rgba(125,160,255,.22);
+    --text:#eaf0ff; --muted:#9fb0d9;
+    --cyan:#22d3ee; --violet:#a78bfa; --magenta:#f472b6; --lime:#a3e635; --amber:#fbbf24; --orange:#fb923c; --teal:#2dd4bf; --blue:#60a5fa;
+    --ok:#34d399; --warm:#fbbf24; --hot:#f43f5e; --cold:#38bdf8;
+    --bcol:var(--ok);
+    --font:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --num:"Exo 2", "Trebuchet MS", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{margin:0;color:var(--text);font-family:var(--font);font-size:15px;line-height:1.55;min-height:100vh;
+    background:
+      radial-gradient(900px 500px at 8% -5%, rgba(34,211,238,.22), transparent 60%),
+      radial-gradient(800px 500px at 100% 0%, rgba(167,139,250,.25), transparent 60%),
+      radial-gradient(900px 600px at 50% 110%, rgba(244,114,182,.16), transparent 60%),
+      linear-gradient(rgba(125,160,255,.06) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, rgba(125,160,255,.06) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg);
+    background-attachment:fixed}
+  main{max-width:1200px;margin:0 auto;padding:26px 16px 56px}
+
+  /* ---------- Header ---------- */
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;
+    padding-bottom:18px;border-bottom:1px solid var(--line);position:relative}
+  header::after{content:"";position:absolute;left:0;bottom:-1px;width:220px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--violet),var(--magenta))}
+  h1{font-family:var(--num);font-weight:800;font-size:clamp(1.35rem,2.7vw,2.05rem);line-height:1.18;margin:0;letter-spacing:.6px;max-width:32ch;
+    background:linear-gradient(95deg,#e0f7ff 0%,var(--cyan) 35%,var(--violet) 70%,var(--magenta) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin:8px 0 0;color:var(--muted);font-size:.95rem;max-width:70ch}
+  h2{font-family:var(--num);font-weight:700;font-size:1.25rem;margin:0 0 14px;letter-spacing:.3px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:.88rem;color:var(--muted);backdrop-filter:blur(8px)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .pill.live .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)} .pill.off .dot{background:var(--hot);box-shadow:0 0 10px var(--hot)}
+
+  section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;
+    backdrop-filter:blur(10px);box-shadow:0 10px 40px rgba(5,10,40,.35)}
+  .grid-top{display:grid;grid-template-columns:minmax(260px,1fr) minmax(240px,.85fr) 1.45fr;gap:18px;margin-bottom:18px}
+  .grid-top > section{margin-bottom:0}
+  @media (max-width:1100px){.grid-top{grid-template-columns:1fr 1fr}.grid-top > section:last-child{grid-column:1/-1}}
+  @media (max-width:880px){.grid-top{grid-template-columns:1fr}}
+
+  /* ---------- Real battery (side panel) ---------- */
+  .realbat{display:flex;flex-direction:column;align-items:center;gap:14px;min-height:340px}
+  .rb-head{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .rb-title{font-weight:600}
+  .rb-conn{display:inline-flex;align-items:center;gap:7px;font-size:.85rem;color:var(--muted)}
+  .rb-conn .dot{background:var(--hot);box-shadow:0 0 10px var(--hot)}
+  .rb-conn.live{color:var(--ok)} .rb-conn.live .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .rb-ring{--p:0;--rc:var(--muted);width:190px;max-width:100%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
+    background:conic-gradient(from 0deg, var(--rc) calc(var(--p)*1%), rgba(125,160,255,.15) 0);
+    box-shadow:0 0 30px color-mix(in srgb, var(--rc) 35%, transparent)}
+  .rb-ring > div{width:80%;aspect-ratio:1;border-radius:50%;background:#152052;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+  .rb-ring b{font-family:var(--num);font-weight:800;font-size:2.8rem;line-height:1;color:var(--rc)}
+  .rb-ring small{display:block;color:var(--muted);font-size:.78rem;margin-top:4px}
+  .rb-rows{width:100%;display:grid;gap:6px}
+  .rb-rows > div{display:flex;justify-content:space-between;font-size:.88rem;border-top:1px solid var(--line);padding-top:6px}
+  .rb-rows span{color:var(--muted)}
+  .rb-note{margin:0;color:var(--muted);font-size:.8rem;text-align:center}
+
+  /* ---------- Battery (the hero) ---------- */
+  .hero{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:340px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;width:420px;height:420px;border-radius:50%;
+    background:radial-gradient(circle, color-mix(in srgb, var(--bcol) 30%, transparent) 0%, transparent 65%);top:50%;left:50%;transform:translate(-50%,-62%);transition:background .6s}
+  .hero > *{position:relative}
+  .battery{position:relative;width:min(100%,340px);aspect-ratio:2.25/1;border:6px solid #8fa6e0;border-radius:24px;padding:8px;
+    background:rgba(10,16,48,.6);box-shadow:inset 0 0 20px rgba(0,0,0,.5);transition:border-color .5s}
+  .battery::after{content:"";position:absolute;right:-21px;top:31%;width:13px;height:38%;background:#8fa6e0;border-radius:0 8px 8px 0}
+  .ghost{position:absolute;left:8px;top:8px;bottom:8px;width:0;border-radius:13px;background:var(--bcol);opacity:0;pointer-events:none}
+  .fill{position:relative;height:100%;width:0;border-radius:13px;overflow:hidden;
+    background-color:var(--bcol);
+    background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 45%,rgba(0,0,0,.18));
+    box-shadow:0 0 18px color-mix(in srgb, var(--bcol) 70%, transparent);
+    transition:width 1.2s ease, background-color .6s}
+  .battery.charging .fill{
+    background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.26) 0 12px,transparent 12px 24px),
+                     linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,0) 45%,rgba(0,0,0,.18));
+    background-size:34px 34px,100% 100%;animation:flow .9s linear infinite;box-shadow:0 0 30px var(--bcol)}
+  .battery.charging .ghost{animation:chargeUp 2.2s ease-in infinite}
+  @keyframes flow{to{background-position:34px 0,0 0}}
+  @keyframes chargeUp{
+    0%{width:calc((100% - 16px) * var(--soc) / 100);opacity:.45}
+    85%{width:calc(100% - 16px);opacity:.15}
+    100%{width:calc(100% - 16px);opacity:0}}
+  .bolt{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none}
+  .bolt svg{width:22%;filter:drop-shadow(0 0 8px rgba(255,255,255,.7));animation:pulse 1.2s ease-in-out infinite}
+  .battery.charging .bolt{display:flex}
+  @keyframes pulse{50%{transform:scale(1.15);opacity:.75}}
+  .battery.hot{border-color:var(--hot);animation:alarm 1s ease-in-out infinite}
+  @keyframes alarm{50%{box-shadow:0 0 34px var(--hot)}}
+  .soc{font-family:var(--num);font-weight:800;font-size:3.8rem;line-height:1;color:var(--bcol);text-shadow:0 0 24px color-mix(in srgb, var(--bcol) 55%, transparent);transition:color .6s}
+  .soc small{font-size:1.5rem;color:var(--muted);margin-left:3px;text-shadow:none}
+  .state{font-size:1rem;color:var(--muted);text-align:center}
+  .state b{color:var(--text);font-weight:600}
+  .tempbadge{padding:5px 14px;border-radius:999px;font-weight:600;border:1px solid var(--bcol);color:var(--bcol);background:color-mix(in srgb, var(--bcol) 14%, transparent)}
+  @media (prefers-reduced-motion:reduce){
+    .battery.charging .fill,.battery.charging .ghost,.bolt svg,.battery.hot{animation:none}}
+
+  /* ---------- Stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .stat{--acc:var(--cyan);position:relative;background:linear-gradient(160deg,color-mix(in srgb, var(--acc) 16%, transparent),rgba(20,28,70,.55) 70%);
+    border:1px solid color-mix(in srgb, var(--acc) 35%, transparent);border-radius:10px;padding:11px 14px 11px 16px;overflow:hidden}
+  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc);box-shadow:0 0 12px var(--acc)}
+  .stat .k{color:var(--muted);font-size:.83rem}
+  .stat .v{font-family:var(--num);font-weight:700;font-size:1.6rem;line-height:1.2;color:color-mix(in srgb, var(--acc) 55%, #fff)}
+  .stat .v span{font-size:.9rem;color:var(--muted);margin-left:4px;font-family:var(--font);font-weight:500}
+  .note{color:var(--muted);font-size:.85rem;margin:12px 0 0}
+  /* hidden on purpose: red charge-status box and capacity note */
+  #batteryStatus,#capNote{display:none}
+  .battery-status{margin-top:12px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--cyan) 35%,transparent);border-radius:11px;background:linear-gradient(160deg,color-mix(in srgb,var(--cyan) 12%,transparent),rgba(20,28,70,.58));position:relative;overflow:hidden}
+  .battery-status::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+  .battery-status-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-left:3px}
+  .battery-status-title{color:var(--muted);font-size:.83rem}
+  .battery-status-value{font-family:var(--num);font-weight:800;font-size:1.45rem;color:var(--cyan)}
+  .battery-status-sub{color:var(--muted);font-size:.78rem;margin:2px 0 8px 3px}
+  .battery-status-track{height:8px;border-radius:999px;background:rgba(125,160,255,.14);overflow:hidden;margin-left:3px}
+  .battery-status-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--ok));box-shadow:0 0 12px rgba(34,211,238,.45);transition:width .8s ease,background .4s}
+  .battery-status.offline .battery-status-value{color:var(--hot)}
+  .battery-status.offline .battery-status-fill{background:var(--hot);box-shadow:none}
+
+  /* ---------- AI ---------- */
+  .ai{border-image:none;position:relative}
+  .ai::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;border-radius:14px 14px 0 0;background:linear-gradient(90deg,var(--cyan),var(--violet),var(--magenta),var(--amber))}
+  .ai-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .ai-head h2{margin:0}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  button{font:inherit;font-weight:600;cursor:pointer;border-radius:9px;border:0;padding:10px 18px;color:#fff;
+    background:linear-gradient(95deg,#0891b2,#7c3aed 60%,#db2777);box-shadow:0 6px 20px rgba(124,58,237,.35);transition:filter .2s}
+  button:hover{filter:brightness(1.12)}
+  button:disabled{opacity:.6;cursor:wait}
+  button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .ai-body{display:grid;grid-template-columns:200px 1fr;gap:24px}
+  @media (max-width:660px){.ai-body{grid-template-columns:1fr}}
+  .gauge{--p:0;--gc:var(--muted);width:180px;aspect-ratio:1;border-radius:50%;margin:0 auto;
+    background:conic-gradient(from 180deg, var(--gc) calc(var(--p)*1%), rgba(125,160,255,.15) 0);display:grid;place-items:center;
+    box-shadow:0 0 30px color-mix(in srgb, var(--gc) 40%, transparent)}
+  .gauge > div{width:78%;aspect-ratio:1;border-radius:50%;background:#152052;display:grid;place-items:center;text-align:center}
+  .gauge b{font-family:var(--num);font-size:2.5rem;line-height:1;color:var(--gc)}
+  .gauge small{display:block;color:var(--muted);font-size:.8rem}
+  .ai-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;margin-bottom:14px}
+  .ai-metrics > div{--acc:var(--violet);background:color-mix(in srgb, var(--acc) 14%, rgba(20,28,70,.6));border:1px solid color-mix(in srgb, var(--acc) 35%, transparent);border-radius:9px;padding:9px 13px}
+  .ai-metrics > div:nth-child(2){--acc:var(--magenta)} .ai-metrics > div:nth-child(3){--acc:var(--cyan)}
+  .ai-metrics > div:nth-child(4){--acc:var(--teal)} .ai-metrics > div:nth-child(5){--acc:var(--amber)}
+  .ai-metrics .k{color:var(--muted);font-size:.8rem}
+  .ai-metrics .v{font-family:var(--num);font-size:1.35rem;font-weight:700}
+  .ai-lists{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:660px){.ai-lists{grid-template-columns:1fr}}
+  .ai-lists h3{font-family:var(--num);font-size:1rem;margin:0 0 8px;font-weight:600}
+  .ai-lists > div:first-child h3{color:var(--orange)} .ai-lists > div:last-child h3{color:var(--lime)}
+  .ai-lists ul{margin:0;padding-left:18px}
+  .ai-lists li{margin-bottom:5px}
+  .ai-lists > div:first-child li::marker{color:var(--orange)} .ai-lists > div:last-child li::marker{color:var(--lime)}
+  .summary{max-width:78ch;margin:0 0 14px}
+  .msg{padding:11px 15px;border-radius:9px;background:var(--panel2);color:var(--muted)}
+  .msg.err{color:#fecdd3;border-left:3px solid var(--hot)}
+
+  /* ---------- Settings ---------- */
+  details summary{cursor:pointer;font-family:var(--num);font-size:1.25rem;font-weight:700}
+  .form{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:16px}
+  label{display:flex;flex-direction:column;gap:5px;font-size:.87rem;color:var(--muted)}
+  input,select{font:inherit;color:var(--text);background:rgba(8,14,44,.7);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  select option{background:#152052}
+  .chart-wrap{position:relative;height:660px}
+  @media (max-width:660px){.chart-wrap{height:560px}}
+  .chart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .chart-head h2{margin:0}
+  .chart-head label{flex-direction:row;align-items:center;gap:8px}
+  /* Basic client-side login gate; not a substitute for server-side authentication. */
+  body:not(.authenticated) main{display:none}
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  body.authenticated #loginScreen{display:none}
+  .login-card{width:min(100%,420px);padding:30px;border:1px solid var(--line);border-radius:18px;background:rgba(26,36,82,.92);box-shadow:0 18px 60px rgba(0,0,0,.4)}
+  .login-card h1{font-size:1.5rem;max-width:none;margin-bottom:8px}
+  .login-card p{color:var(--muted);margin:0 0 20px}
+  .login-card label{margin:12px 0}
+  .login-card input{width:100%;margin-top:4px}
+  .login-card button{width:100%;margin-top:12px;padding:11px 16px;border:0;border-radius:9px;background:linear-gradient(90deg,var(--cyan),var(--violet));color:#10183a;font-weight:800;cursor:pointer}
+  #loginError{min-height:1.5em;margin-top:10px;color:#fecdd3;font-size:.9rem}
+</style>
+</head>
+<body>
+<div id="loginScreen" role="main" aria-label="Website login">
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <h1>Battery Digital Twin</h1>
+    <p>Sign in to open the dashboard.</p>
+    <label for="loginUsername">Username
+      <input id="loginUsername" name="username" autocomplete="username" required>
+    </label>
+    <label for="loginPassword">Password
+      <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Login</button>
+    <div id="loginError" role="alert" aria-live="polite"></div>
+  </form>
+</div>
+<main>
+  <header>
+    <div>
+      <h1>A GENERATIVE DIGITAL TWIN FRAMEWORK FOR LITHIUM-ION BATTERY AGING PREDICTION</h1>
+      <p class="sub">Live ESP32 sensor data from ThingSpeak, mirrored as a battery digital twin, with AI-based state-of-health estimation.</p>
+    </div>
+    <div class="row">
+      <span id="pill" class="pill"><span class="dot"></span><span id="pillText">Not connected</span></span>
+      <span id="updated" class="pill">No data yet</span>
+    </div>
+  </header>
+
+  <section style="display:none">
+    <details id="settings">
+      <summary>Settings</summary>
+      <div class="form">
+        <label>ThingSpeak channel ID<input id="chId" inputmode="numeric" placeholder="e.g. 2345678"></label>
+        <label>ThingSpeak read API key<input id="readKey" placeholder="Leave empty for a public channel"></label>
+        <label>Battery type
+          <select id="type">
+            <option>Li-ion NMC (18650/21700)</option>
+            <option>Li-ion NCA</option>
+            <option>Li-ion LCO</option>
+            <option>LiPo (pouch)</option>
+            <option>LiFePO4</option>
+            <option>LTO</option>
+          </select>
+        </label>
+        <label>Rated capacity (mAh)<input id="rated" type="number" min="100" step="50" placeholder="e.g. 2600"></label>
+        <label>Cells in series<input id="cells" type="number" min="1" max="12" value="3"></label>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button id="saveBtn">Save and connect</button>
+        <span class="note" style="margin:0">Settings are stored only in this browser.</span>
+      </div>
+    </details>
+  </section>
+
+  <div class="grid-top">
+    <section class="hero" aria-live="polite">
+      <div id="battery" class="battery" style="--soc:0">
+        <div id="ghost" class="ghost"></div>
+        <div id="fill" class="fill"></div>
+        <div class="bolt"><svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></div>
+      </div>
+      <div class="soc" id="socText">--<small>%</small></div>
+      <div class="state" id="stateText">Waiting for data</div>
+      <div class="tempbadge" id="tempBadge">Temperature --</div>
+    </section>
+
+    <section class="realbat" id="realBat">
+      <div class="rb-head">
+        <span class="rb-title">Real battery</span>
+        <span class="rb-conn" id="rbConn"><i class="dot"></i><span id="rbConnText">Not connected</span></span>
+      </div>
+      <div class="rb-ring" id="rbRing"><div><b id="rbPct">--%</b><small id="rbSrc">Waiting for ESP32</small></div></div>
+      <div class="rb-rows">
+        <div><span>Pack voltage</span><b id="rbV">--</b></div>
+        <div><span>Per cell</span><b id="rbCell">--</b></div>
+        <div><span>Last data</span><b id="rbAge">--</b></div>
+      </div>
+      <p class="rb-note" id="rbNote">Waiting for the ESP32 to send data.</p>
+    </section>
+
+    <section>
+      <h2>Live readings</h2>
+      <div class="stats">
+        <div class="stat" style="--acc:var(--cyan)"><div class="k">Pack voltage</div><div class="v" id="sV">--<span>V</span></div></div>
+        <div class="stat" style="--acc:var(--blue)"><div class="k">Per cell</div><div class="v" id="sCell">--<span>V</span></div></div>
+        <div class="stat" style="--acc:var(--violet)"><div class="k">Current</div><div class="v" id="sI">--<span>A</span></div></div>
+        <div class="stat" style="--acc:var(--amber)"><div class="k">Power</div><div class="v" id="sP">--<span>W</span></div></div>
+        <div class="stat" style="--acc:var(--orange)"><div class="k">Temperature</div><div class="v" id="sT">--<span>°C</span></div></div>
+        <div class="stat" style="--acc:var(--magenta)"><div class="k">Charger input</div><div class="v" id="sCV">--<span>V</span></div></div>
+        <div class="stat" style="--acc:#e879f9"><div class="k">Charge count</div><div class="v" id="sCyc">--</div></div>
+        <div class="stat" style="--acc:#c084fc"><div class="k">Live cycle count</div><div class="v" id="sEq">--</div></div>
+        <div class="stat" style="--acc:var(--teal)"><div class="k">Measured capacity</div><div class="v" id="sCap">--<span>mAh</span></div></div>
+        <div class="stat" style="--acc:var(--lime)"><div class="k">Capacity health</div><div class="v" id="sSoh">--<span>%</span></div></div>
+        <div class="stat" style="--acc:#818cf8"><div class="k" id="sSessK">Last charge session</div><div class="v" id="sSess">--<span>min</span></div></div>
+        <div class="stat" style="--acc:#38bdf8"><div class="k">Total charging time</div><div class="v" id="sTot">--<span>h</span></div></div>
+      </div>
+      <div class="battery-status" id="batteryStatus">
+        <div class="battery-status-head">
+          <div class="battery-status-title">Battery charge status</div>
+          <div class="battery-status-value" id="sBatteryStatus">--</div>
+        </div>
+        <div class="battery-status-sub" id="sBatteryStatusSub">Waiting for live SOC data</div>
+        <div class="battery-status-track"><div class="battery-status-fill" id="sBatteryStatusFill"></div></div>
+      </div>
+      <p class="note" id="capNote"></p>
+    </section>
+  </div>
+
+  <section class="ai">
+    <div class="ai-head">
+      <h2>AI SOC prediction</h2>
+      <div class="row">
+        <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="autoAi"> Every 30 min</label>
+        <button id="aiBtn">Predict SOC</button>
+      </div>
+    </div>
+    <div id="aiOut"><div class="msg">Press "Predict SOC" to view the current battery charge percentage.</div></div>
+  </section>
+
+  <section>
+    <div class="chart-head">
+      <h2>Live history (real ThingSpeak readings)</h2>
+      <div class="row">
+      <button id="clearHist" type="button" style="padding:7px 12px;font-size:.85rem;box-shadow:none;background:rgba(125,160,255,.22)">Clear saved history</button>
+      <label>Time window
+        <select id="win">
+          <option value="5">Last 5 min</option>
+          <option value="15">Last 15 min</option>
+          <option value="60">Last 1 hour</option>
+          <option value="360">Last 6 hours</option>
+          <option value="1440">Last 24 hours</option>
+          <option value="0">All saved data</option>
+        </select>
+      </label>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart" aria-label="Live voltage, current and temperature history"></canvas></div><p class="note" id="graphTime">Waiting for timestamp...</p>
+  </section>
+</main>
+<script>
+function initDashboard(){
+
+// Your Cloudflare Worker address (the OpenAI key is stored there, not in this file)
+const AI_URL = 'https://battery-ai.criticalthinkingmind007.workers.dev';
+const $ = id => document.getElementById(id);
+const DEF = {chId:'3507289', readKey:'58LE1GXH1RDPZAJY', model:'gpt-4o-mini', type:'Li-ion NMC (18650/21700)', rated:6500, cells:3, autoAi:false, win:15};
+const S = {cfg:null, feeds:[], chart:null, poll:null, aiTimer:null, lastId:null, lastNewLocal:0, fetchFails:0, wasOnline:null, soc:null, socTs:null, socKey:null};
+// ESP32 uploads every 20 s. Device is marked offline only if NO new entry arrives for this long.
+const OFFLINE_AFTER_S = 45;
+
+// SOC: resting-voltage calibration + Coulomb counting.
+// Voltage is used only when the battery is resting; load voltage must NOT reset SOC.
+const OCV = {
+  nmc:{v:[3.30,3.55,3.65,3.70,3.74,3.79,3.85,3.92,4.00,4.10,4.20],s:[0,10,20,30,40,50,60,70,80,90,100]},
+  lfp:{v:[2.80,3.00,3.20,3.25,3.28,3.30,3.31,3.32,3.33,3.35,3.45],s:[0,10,20,30,40,50,60,70,80,90,100]},
+  lto:{v:[1.80,2.00,2.15,2.20,2.25,2.30,2.35,2.40,2.45,2.55,2.70],s:[0,10,20,30,40,50,60,70,80,90,100]}
+};
+const CYCLE_LIFE = {'Li-ion NMC (18650/21700)':'500-1000','Li-ion NCA':'500-800','Li-ion LCO':'300-500','LiPo (pouch)':'300-500','LiFePO4':'2000-4000','LTO':'5000-10000'};
+function tableFor(type){ if(type.startsWith('LiFePO4')) return OCV.lfp; if(type.startsWith('LTO')) return OCV.lto; return OCV.nmc; }
+function socFromCell(c,type){ const t=tableFor(type); if(c<=t.v[0])return 0; if(c>=t.v.at(-1))return 100; for(let i=0;i<t.v.length-1;i++) if(c<t.v[i+1]) return t.s[i]+(c-t.v[i])/(t.v[i+1]-t.v[i])*(t.s[i+1]-t.s[i]); return 100; }
+function socStorageKey(){ return 'battery_soc_v3_' + (S.cfg?.chId||'local') + '_' + (S.cfg?.cells||3); }
+function loadSocState(){ try{ const x=JSON.parse(localStorage.getItem(socStorageKey())||'null'); if(x && isFinite(x.soc) && isFinite(x.ts)){ S.soc=Math.max(0,Math.min(100,x.soc)); S.socTs=x.ts; S.socKey=socStorageKey(); return true; } }catch(e){} return false; }
+function saveSocState(){ try{ localStorage.setItem(socStorageKey(),JSON.stringify({soc:S.soc,ts:S.socTs})); S.socKey=socStorageKey(); }catch(e){} }
+function calibrateSocFromResting(feed){
+  if(!feed || !isFinite(feed.v)) return false;
+  if(isFinite(feed.i) && Math.abs(feed.i)>0.05) return false;
+  const cell=feed.v/(S.cfg.cells||3);
+  S.soc=Math.max(0,Math.min(100,socFromCell(cell,S.cfg.type)));
+  S.socTs=feed.t.getTime();
+  saveSocState();
+  return true;
+}
+function updateCoulombSoc(){
+  if(!S.feeds.length) return 50;
+  const key=socStorageKey();
+  if(S.socKey!==key) { S.soc=null; S.socTs=null; }
+  const latest=S.feeds[S.feeds.length-1];
+  if(!loadSocState()) {
+    const rest=[...S.feeds].reverse().find(f=>isFinite(f.i)&&Math.abs(f.i)<=0.05&&isFinite(f.v));
+    if(rest) calibrateSocFromResting(rest);
+    else { S.soc=50; S.socTs=latest.t.getTime(); saveSocState(); }
+  }
+  // Only integrate samples after the saved timestamp. Charging current is positive; discharge is negative.
+  const samples=S.feeds.filter(f=>isFinite(f.i)&&isFinite(f.t)&&f.t.getTime()>S.socTs);
+  let prevTs=S.socTs;
+  let prevI=null;
+  for(const f of samples){
+    const dtH=Math.max(0,Math.min((f.t.getTime()-prevTs)/3600000,0.1));
+    const i=f.i;
+    const avgI=prevI===null?i:(prevI+i)/2;
+    const rated=num(S.cfg.rated);
+    if(rated>0) S.soc += (avgI*dtH/rated)*100;
+    prevI=i; prevTs=f.t.getTime();
+  }
+  if(samples.length){ S.soc=Math.max(0,Math.min(100,S.soc)); S.socTs=prevTs; saveSocState(); }
+  // When idle for a while, gently re-calibrate only if the voltage is genuinely resting.
+  if(isFinite(latest.i)&&Math.abs(latest.i)<=0.05){
+    const idleMs=Date.now()-latest.t.getTime();
+    if(idleMs>=30000) calibrateSocFromResting(latest);
+  }
+  return Math.round(Math.max(0,Math.min(100,S.soc??50)));
+}
+const num = x => (x===null || x===undefined || x==='') ? NaN : parseFloat(x);
+const fmt = (x,d=1) => isFinite(x) ? x.toFixed(d) : '--';
+function setV(id, val, unit){ $(id).innerHTML = val + (unit ? `<span>${unit}</span>` : ''); }
+
+// ---------- Settings ----------
+function loadCfg(){ return {...DEF}; } // settings are locked: always use the defaults in DEF
+function saveCfg(){ try { localStorage.setItem('bm_cfg', JSON.stringify(S.cfg)); } catch(e){} }
+function fillForm(){ for(const k of ['chId','readKey','type','rated','cells']) $(k).value = S.cfg[k] ?? ''; $('autoAi').checked = !!S.cfg.autoAi; }
+function readForm(){
+  for(const k of ['chId','readKey','type']) S.cfg[k] = $(k).value.trim();
+  S.cfg.rated = num($('rated').value) || '';
+  S.cfg.cells = parseInt($('cells').value) || 3;
+  if(!S.cfg.model) S.cfg.model = 'gpt-4o-mini';
+}
+
+// ---------- ThingSpeak ----------
+function parseStatus(s){
+  const o = {};
+  (s || '').split(';').forEach(p => { const [k,v] = p.split(':'); if(k && v !== undefined) o[k.trim().toLowerCase()] = num(v); });
+  return o;
+}
+function parseFeed(f){
+  return { id:f.entry_id, t:new Date(f.created_at), v:num(f.field1), i:num(f.field2), temp:num(f.field3), cv:num(f.field4),
+           chg:num(f.field5)===1, cyc:num(f.field6), cap:num(f.field7), tmin:num(f.field8), st:parseStatus(f.status) };
+}
+function lastValid(key){ for(let k=S.feeds.length-1;k>=0;k--){ const x=S.feeds[k][key]; if(isFinite(x)) return x; } return NaN; }
+
+async function fetchData(){
+  if(!S.cfg.chId){ setPill('', 'Not connected'); return; }
+  let url = `https://api.thingspeak.com/channels/${encodeURIComponent(S.cfg.chId)}/feeds.json?results=${S.histFetched?200:8000}&status=true&_=${Date.now()}`;
+  if(S.cfg.readKey) url += `&api_key=${encodeURIComponent(S.cfg.readKey)}`;
+  try{
+    const r = await fetch(url, {cache:'no-store'});
+    if(!r.ok) throw new Error(`ThingSpeak returned HTTP ${r.status}. Check the channel ID and read key.`);
+    const j = await r.json();
+    if(!j || !Array.isArray(j.feeds)) throw new Error('No feeds in the ThingSpeak response. Check the channel ID and read key.');
+    const all = j.feeds.map(parseFeed).filter(f => isFinite(f.v));
+    S.feeds = all.slice(-200);
+    ingestHistory(all);
+    S.histFetched = true;
+    S.fetchFails = 0;
+    trackNewEntry();
+    render();
+  }catch(e){
+    // One failed browser request is not the device going offline; keep the last state.
+    S.fetchFails++;
+    if(S.fetchFails >= 3){ setPill('off', 'Internet / ThingSpeak problem'); $('updated').textContent = e.message; }
+  }
+}
+
+// Online/offline is measured with this computer's own clock (when a NEW entry_id appears),
+// so a wrong PC clock or time-zone cannot make the status flicker.
+function trackNewEntry(){
+  if(!S.feeds.length) return;
+  const L = S.feeds[S.feeds.length-1];
+  if(S.lastId === null){
+    const age = (Date.now() - L.t.getTime())/1000;
+    S.lastNewLocal = age < 180 ? Date.now() : Date.now() - age*1000;
+  }else if(L.id !== S.lastId){
+    S.lastNewLocal = Date.now();
+  }
+  S.lastId = L.id;
+}
+function deviceAgeS(){
+  if(!S.feeds.length) return Infinity;
+  const latest=S.feeds[S.feeds.length-1];
+  if(!latest || !isFinite(latest.t?.getTime())) return Infinity;
+  return Math.max(0,(Date.now()-latest.t.getTime())/1000);
+}
+function isOnline(){ return S.feeds.length > 0 && deviceAgeS() < OFFLINE_AFTER_S; }
+function tick(){
+  if(!S.feeds.length || S.fetchFails >= 3) return;
+  const online = isOnline(), age = Math.max(0, Math.round(deviceAgeS()));
+  setPill(online ? 'live' : 'off', online ? 'Live' : 'Device offline');
+  $('updated').textContent = age < 120 ? `Last upload ${age} s ago` : `Last upload ${Math.round(age/60)} min ago`;
+  if(S.wasOnline !== null && S.wasOnline !== online) render();
+  S.wasOnline = online;
+  renderReal();
+}
+
+function setPill(cls, text){ $('pill').className = 'pill ' + cls; $('pillText').textContent = text; }
+
+// ---------- Real battery (side panel): percentage comes ONLY from the latest battery voltage ----------
+function renderReal(){
+  const ring=$('rbRing'); if(!ring) return;
+  const txt=(id,t)=>{ const e=$(id); if(e) e.textContent=t; };
+  const conn=$('rbConn');
+  const reset=(note,connText)=>{ ring.style.setProperty('--p',0); ring.style.setProperty('--rc','var(--muted)'); txt('rbPct','--%'); txt('rbSrc','No reading'); conn.className='rb-conn'; txt('rbConnText',connText); txt('rbV','--'); txt('rbCell','--'); txt('rbAge','--'); txt('rbNote',note); };
+  if(!S.feeds.length) return reset('Waiting for the ESP32 to send data.','Not connected');
+  const L=S.feeds[S.feeds.length-1], cells=S.cfg.cells||3, online=isOnline(), age=Math.max(0,Math.round(deviceAgeS()));
+  if(!isFinite(L.v)) return reset('No voltage reading received yet.', online?'Connected to ESP32':'Not connected');
+  const cellV=L.v/cells;
+  const pct=Math.round(Math.max(0,Math.min(100,socFromCell(cellV,S.cfg.type))));
+  const col=!online?'var(--muted)':(pct>=50?'var(--ok)':(pct>=20?'var(--warm)':'var(--hot)'));
+  ring.style.setProperty('--p',pct); ring.style.setProperty('--rc',col);
+  txt('rbPct',pct+'%'); txt('rbSrc', online?'From battery voltage':'Last known level');
+  conn.className='rb-conn'+(online?' live':''); txt('rbConnText', online?'Connected to ESP32':'Not connected');
+  txt('rbV',L.v.toFixed(2)+' V'); txt('rbCell',cellV.toFixed(3)+' V');
+  txt('rbAge', age<120 ? age+' s ago' : Math.round(age/60)+' min ago');
+  txt('rbNote', !online ? 'ESP32 is offline. Showing the last saved reading.'
+    : (isFinite(L.i)&&Math.abs(L.i)>0.05 ? 'Battery is charging or in use, so this is approximate. It is most accurate when the battery rests.'
+    : 'Battery is resting, so this is the most accurate reading.'));
+}
+
+// ---------- Render ----------
+function tempClass(t){
+  if(!isFinite(t)) return {c:'var(--ok)', label:'Temperature --', hot:false};
+  if(t >= 45) return {c:'var(--hot)',  label:`Hot ${t.toFixed(1)} °C`, hot:true};
+  if(t >= 35) return {c:'var(--warm)', label:`Warm ${t.toFixed(1)} °C`, hot:false};
+  if(t < 5)   return {c:'var(--cold)', label:`Cold ${t.toFixed(1)} °C`, hot:false};
+  return {c:'var(--ok)', label:`Normal ${t.toFixed(1)} °C`, hot:false};
+}
+
+function render(){
+  renderReal();
+  if(!S.feeds.length){ setPill('off', 'Channel empty'); $('stateText').textContent = 'The ESP32 has not sent any data yet.'; return; }
+  const L = S.feeds[S.feeds.length-1];
+  const cells = S.cfg.cells || 3, rated = num(S.cfg.rated);
+  const ageS = deviceAgeS();
+  const online = isOnline();
+  S.wasOnline = online;
+  tick();
+
+  const temp = lastValid('temp');
+  const deviceSoc = liveSocFromDevice();
+  const liveSoc = isFinite(deviceSoc) ? deviceSoc : (isFinite(S.soc) ? S.soc : updateCoulombSoc());
+  const cap = lastValid('cap'), cyc = lastValid('cyc'), tmin = lastValid('tmin');
+  const cell = L.v / cells;
+  const soc = isFinite(deviceSoc) ? deviceSoc : updateCoulombSoc();
+  const charging = online && L.chg;
+  const st = L.st || {};
+
+  // Battery visual
+  const tc = tempClass(temp);
+  const bat = $('battery');
+  bat.style.setProperty('--bcol', tc.c);
+  document.documentElement.style.setProperty('--bcol', tc.c);
+  bat.style.setProperty('--soc', soc);
+  $('fill').style.width = soc + '%';
+  bat.classList.toggle('charging', charging);
+  bat.classList.toggle('hot', tc.hot);
+  $('socText').innerHTML = `${soc}<small>%</small>`;
+  $('tempBadge').textContent = tc.label;
+  let stateTxt;
+  if(!online) stateTxt = `Last data ${Math.round(ageS/60)} min ago`;
+  else if(charging) stateTxt = `<b>Charging</b> at ${fmt(L.i,2)} A, session ${fmt(st.smin,1)} min`;
+  else if(L.i < 0) stateTxt = `<b>Discharging</b> at ${fmt(-L.i,2)} A`;
+  else stateTxt = '<b>Idle</b>';
+  $('stateText').innerHTML = stateTxt;
+
+  // Stats
+  setV('sV', fmt(L.v,2), 'V');
+  setV('sCell', fmt(cell,3), 'V');
+  setV('sI', (L.i>0?'+':'') + fmt(L.i,2), 'A');
+  setV('sP', fmt(Math.abs(L.v*L.i),1), 'W');
+  setV('sT', fmt(temp,1), '°C');
+  setV('sCV', fmt(L.cv,1), 'V');
+  setV('sCyc', isFinite(cyc) ? cyc : '--');
+  // Live cycles are kept proportional to the project's Charge count (Field 6).
+  setV('sEq', S.cyc ? S.cyc.n : '--');
+  setV('sCap', cap > 0 ? cap.toFixed(0) : '--', 'mAh');
+
+  // Extra battery charge status indicator
+  const bs = $('batteryStatus'), bsVal = $('sBatteryStatus'), bsSub = $('sBatteryStatusSub'), bsFill = $('sBatteryStatusFill');
+  const safeSoc = isFinite(soc) ? Math.max(0, Math.min(100, soc)) : NaN;
+  if(isFinite(safeSoc)){
+    bs.classList.toggle('offline', !online);
+    bsVal.textContent = `${Math.round(safeSoc)}% charged`;
+    if(!online) bsSub.textContent = 'Last known charge level • device offline';
+    else if(charging) bsSub.textContent = `Charging now • ${fmt(L.i,2)} A`;
+    else if(L.i < 0) bsSub.textContent = `Discharging now • ${fmt(Math.abs(L.i),2)} A`;
+    else bsSub.textContent = 'Battery level • idle';
+    bsFill.style.width = safeSoc + '%';
+  }else{
+    bs.classList.add('offline');
+    bsVal.textContent = '--';
+    bsSub.textContent = 'Waiting for live SOC data';
+    bsFill.style.width = '0%';
+  }
+  const soh = (cap > 0 && rated > 0) ? cap / rated * 100 : NaN;
+  setV('sSoh', fmt(soh,1), '%');
+  $('sSessK').textContent = charging ? 'Current charge session' : 'Last charge session';
+  setV('sSess', fmt(charging ? st.smin : st.lmin, 1), 'min');
+  setV('sTot', fmt(tmin/60, 1), 'h');
+
+  let note = '';
+  if(!(rated > 0)) note = 'Enter the rated capacity (mAh) in Settings to calculate capacity health %. ';
+  if(cap > 0 && rated > 0) note += `Capacity health = ${cap.toFixed(0)} / ${rated.toFixed(0)} × 100. Live cycles follow Charge count (Field 6).`;
+  if(!(cap > 0)) note += 'Measured capacity is not available from ThingSpeak field7 yet. AI can still predict aging from live telemetry, SOC, cycles and temperature.';
+  $('capNote').textContent = note;
+
+  drawChart();
+}
+
+// ---------- Live equivalent full cycle calculation ----------
+// Uses real telemetry only. If ESP32 provides total charged mAh (tmah),
+// that value is used. Otherwise positive current is integrated over the
+// actual ThingSpeak timestamps. No fake cycle values are generated.
+function cycleSeries(feeds){
+  const rated=num(S.cfg.rated);
+  if(!(rated>0) || !feeds.length) return feeds.map(()=>NaN);
+  const out=[];
+  let prevT=null;
+  let accM=NaN;
+  let fallbackM=0;
+  for(const f of feeds){
+    const st=f.st||{};
+    // Project requirement: cycle count follows Charge count (Field 6).
+    if(isFinite(f.cyc) && f.cyc>=0){
+      out.push(f.cyc);
+      prevT=f.t;
+      continue;
+    }
+    // Optional ESP32 EFC remains a fallback.
+    if(isFinite(st.efc) && st.efc>=0){
+      out.push(st.efc);
+      prevT=f.t;
+      continue;
+    }
+    if(isFinite(st.tmah) && st.tmah>=0) accM=st.tmah;
+
+    // Fallback: calculate real equivalent full cycles from actual current-time
+    // throughput. Absolute current counts both charging and discharging.
+    if(isFinite(f.i) && prevT!==null){
+      const dtH=Math.max(0,Math.min((f.t-prevT)/3600000,0.25));
+      fallbackM += Math.abs(f.i)*dtH*1000;
+    }
+    const efcFromTmah = isFinite(accM) ? accM/rated : NaN;
+    const efcFromCurrent = fallbackM/(rated*2);
+    out.push(isFinite(efcFromTmah) ? efcFromTmah : efcFromCurrent);
+    prevT=f.t;
+  }
+  return out;
+}
+function liveEquivalentCycles(){
+  const L=S.feeds.at(-1);
+  if(isFinite(L?.cyc) && L.cyc>=0) return L.cyc;
+  const st=L?.st||{};
+  if(isFinite(st.efc) && st.efc>=0) return st.efc;
+  const a=cycleSeries(S.feeds);
+  return a.length ? a[a.length-1] : NaN;
+}
+function liveSocFromDevice(){
+  const L=S.feeds.at(-1);
+  const st=L?.st||{};
+  return isFinite(st.soc) ? Math.max(0,Math.min(100,st.soc)) : NaN;
+}
+
+// ---------- Live 2D chart ----------
+const apUp = t => t.replace(/\b(am|pm)\b/i, m => m.toUpperCase());
+const T12 = new Intl.DateTimeFormat('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const D12 = new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short'});
+const DFULL = new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+function fmtDT(d,withSeconds=true){
+  return apUp(new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',...(withSeconds?{second:'2-digit'}:{}),hour12:true}).format(d));
+}
+const TICK_STEPS = [30e3,60e3,120e3,300e3,600e3,900e3,1800e3,3600e3,7200e3,10800e3,21600e3,43200e3,86400e3];
+
+// ---------- Saved history + cycle counter (kept in this browser) ----------
+// One cycle = battery charged up to CYCLE_HIGH % or more after being at CYCLE_LOW % or less,
+// then discharged back down to CYCLE_LOW % (charge + discharge = 1 cycle).
+const CYCLE_LOW = 20, CYCLE_HIGH = 90, HIST_MAX = 20000;
+function histKey(){ return 'bm_hist_v1_' + (S.cfg?.chId || 'local'); }
+function loadHist(){
+  S.hist = []; S.cyc = {n:0, ph:0};
+  try{
+    const x = JSON.parse(localStorage.getItem(histKey()) || 'null');
+    if(x && Array.isArray(x.s)){ S.hist = x.s; if(x.c) S.cyc = x.c; }
+  }catch(e){}
+}
+function saveHist(){
+  const put = () => localStorage.setItem(histKey(), JSON.stringify({s:S.hist, c:S.cyc}));
+  try{ put(); }catch(e){
+    try{ S.hist.splice(0, Math.ceil(S.hist.length*0.25)); put(); }catch(e2){}
+  }
+}
+function stepCycle(soc){
+  const c = S.cyc;                       // ph: 0 = unknown, 1 = reached low, 2 = charged after low
+  if(soc <= CYCLE_LOW){ if(c.ph === 2) c.n++; c.ph = 1; }
+  else if(soc >= CYCLE_HIGH && c.ph === 1) c.ph = 2;
+}
+function ingestHistory(all){
+  const cells = S.cfg.cells || 3;
+  let last = S.hist.length ? S.hist[S.hist.length-1].t : 0, added = 0;
+  for(const f of all){
+    const t = f.t.getTime();
+    if(!isFinite(t) || t <= last) continue;
+    const dev = f.st && f.st.soc;
+    const soc = isFinite(dev) ? Math.max(0, Math.min(100, dev)) : socFromCell(f.v/cells, S.cfg.type);
+    stepCycle(soc);
+    S.hist.push({t, v:+f.v.toFixed(3), i:isFinite(f.i)?+f.i.toFixed(3):null, p:isFinite(f.temp)?+f.temp.toFixed(2):null, s:+soc.toFixed(1), c:S.cyc.n});
+    last = t; added++;
+  }
+  if(S.hist.length > HIST_MAX) S.hist.splice(0, S.hist.length - HIST_MAX);
+  if(added) saveHist();
+}
+
+// ---------- Live 2D chart: 4 stacked panels sharing one moving time axis ----------
+// Visible time range. Online: ends at "now". Offline: stays on the last saved sample.
+// "All saved data" (win = 0): starts at the first saved sample, so old data stays fixed in place.
+function chartRange(){
+  const mins = S.cfg.win, live = S.chartLive || !S.hist.length;
+  const lastT = S.hist.length ? S.hist[S.hist.length-1].t : Date.now();
+  if(mins === 0){
+    const first = S.hist.length ? S.hist[0].t : Date.now() - 900000;
+    const hi = live ? Date.now() : lastT;
+    return {lo: Math.min(first, hi - 300000), hi};
+  }
+  const w = (mins || 15) * 60000, hi = live ? Date.now() : lastT + w*0.04;
+  return {lo: hi - w, hi};
+}
+function buildSets(){
+  S.chartLive = isOnline();
+  const {lo, hi} = chartRange(), margin = (hi - lo) * 0.05;
+  let H = S.hist, a = 0;
+  while(a < H.length && H[a].t < lo - margin) a++;
+  H = H.slice(a);
+  const MAXP = 1200;                       // keep long windows light
+  if(H.length > MAXP){ const k = Math.ceil(H.length/MAXP); H = H.filter((h,n) => n%k === 0 || n === H.length-1); }
+  const mk = key => H.map(h => ({x:h.t, y:(h[key]===null||h[key]===undefined)?null:h[key], s:h.s}));
+  const sets = [mk('v'), mk('i'), mk('p'), mk('c')];
+  if(S.chartLive) sets.forEach(arr => {
+    for(let k=arr.length-1;k>=0;k--) if(arr[k].y !== null){ arr.push({x:Date.now(), y:arr[k].y, s:arr[k].s, live:true}); break; }
+  });
+  return sets;
+}
+const AXES = {
+  v:  {k:0, span:0.6, pad:0.12},
+  i:  {k:1, span:0.5, pad:0.15, zero:true},
+  t:  {k:2, span:4,   pad:0.15},
+  cyc:{k:3, cyc:true}
+};
+function fitAxes(c, lo, hi, snap){
+  for(const id in AXES){
+    const cfg = AXES[id], data = c.data.datasets[cfg.k].data;
+    let mn = Infinity, mx = -Infinity;
+    for(const p of data){ if(p.x<lo || p.x>hi || p.y===null) continue; if(p.y<mn) mn=p.y; if(p.y>mx) mx=p.y; }
+    if(!isFinite(mn)) continue;
+    let tmin, tmax;
+    if(cfg.cyc){ tmin = 0; tmax = Math.max(3, Math.ceil(mx)+1); }
+    else{
+      if(cfg.zero){ mn = Math.min(mn,0); mx = Math.max(mx,0); }
+      const span = Math.max(mx-mn, cfg.span), mid = (mx+mn)/2, pad = span*cfg.pad;
+      tmin = mid - span/2 - pad; tmax = mid + span/2 + pad;
+    }
+    const o = c.options.scales[id];
+    const cmin = isFinite(o.min) ? o.min : tmin, cmax = isFinite(o.max) ? o.max : tmax;
+    o.min = snap ? tmin : cmin + (tmin-cmin)*0.12;
+    o.max = snap ? tmax : cmax + (tmax-cmax)*0.12;
+  }
+}
+const livePlugin = {
+  id:'livePlugin',
+  beforeDatasetsDraw(c){
+    const {ctx, chartArea:a} = c;
+    ['v','i','t','cyc'].forEach((id,k) => {
+      const sc = c.scales[id]; if(!sc) return;
+      ctx.save(); ctx.fillStyle = k%2 ? 'rgba(125,160,255,.05)' : 'rgba(125,160,255,.02)';
+      ctx.fillRect(a.left, sc.top, a.right-a.left, sc.bottom-sc.top); ctx.restore();
+    });
+  },
+  afterDatasetsDraw(c){
+    const act = c.tooltip && c.tooltip.getActiveElements ? c.tooltip.getActiveElements() : [];
+    if(!act.length) return;
+    const x = act[0].element.x, {ctx, chartArea:a} = c;
+    ctx.save(); ctx.strokeStyle = 'rgba(234,240,255,.55)'; ctx.setLineDash([5,4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.restore();
+  }
+};
+
+function drawChart(){
+  if(typeof Chart==='undefined') return;
+  const sets = buildSets();
+  const base = {pointRadius:0, pointHoverRadius:5, pointHitRadius:12, borderWidth:2.5, spanGaps:false};
+  if(S.chart){
+    S.chart.data.datasets.forEach((d,k) => { d.data = sets[k]; });
+  } else {
+    const grid = {color:'rgba(125,160,255,.12)'};
+    const ax = (title,color,weight,tick) => ({type:'linear', position:'left', stack:'main', stackWeight:weight, grid,
+      border:{color}, ticks:{color, maxTicksLimit:5, callback:tick}, title:{display:true, text:title, color}});
+    const ds = [
+      {label:'Voltage', yAxisID:'v', borderColor:'#22d3ee', backgroundColor:'rgba(34,211,238,.10)', fill:true, cubicInterpolationMode:'monotone', data:sets[0], ...base},
+      {label:'Current', yAxisID:'i', borderColor:'#a78bfa', cubicInterpolationMode:'monotone', data:sets[1], ...base},
+      {label:'Temperature', yAxisID:'t', borderColor:'#fb923c', cubicInterpolationMode:'monotone', data:sets[2], ...base},
+      {label:'Cycle', yAxisID:'cyc', borderColor:'#a3e635', stepped:true, data:sets[3], ...base}
+    ];
+    S.chart = new Chart($('chart'), {type:'line', data:{datasets:ds}, plugins:[livePlugin], options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:'index', axis:'x', intersect:false},
+      plugins:{
+        legend:{labels:{color:'#eaf0ff', usePointStyle:true}},
+        tooltip:{backgroundColor:'rgba(8,14,44,.96)', borderColor:'rgba(125,160,255,.45)', borderWidth:1, padding:12,
+          titleFont:{size:13}, bodyFont:{size:13}, footerFont:{size:12}, footerColor:'#9fb0d9',
+          callbacks:{
+            title:items => { const d = new Date(items[0].parsed.x); return ['Date: ' + DFULL.format(d), 'Time: ' + apUp(T12.format(d))]; },
+            label:ctx => {
+              const y = ctx.parsed.y; if(y===null || y===undefined || !isFinite(y)) return ctx.dataset.label + ': --';
+              switch(ctx.dataset.label){
+                case 'Voltage': return 'Voltage: ' + y.toFixed(2) + ' V';
+                case 'Current': return 'Current: ' + (y>0?'+':'') + y.toFixed(2) + ' A';
+                case 'Temperature': return 'Temperature: ' + y.toFixed(1) + ' °C';
+                default: return 'Cycle: ' + Math.round(y);
+              }},
+            footer:items => { const p = items[0].dataset.data[items[0].dataIndex]; return p && isFinite(p.s) ? 'Charge level: ' + Math.round(p.s) + '%' : ''; }
+          }}
+      },
+      scales:{
+        x:{type:'linear', grid,
+          ticks:{color:'#9fb0d9', maxRotation:0, callback:v => [apUp(T12.format(new Date(v))), D12.format(new Date(v))]},
+          afterBuildTicks:sc => {
+            const step = TICK_STEPS.find(x => x >= (sc.max - sc.min)/7) || TICK_STEPS[TICK_STEPS.length-1], t = [];
+            const off = -new Date(sc.min).getTimezoneOffset()*60000;
+            for(let v=Math.ceil((sc.min+off)/step)*step-off; v<=sc.max; v+=step) t.push({value:v});
+            sc.ticks = t;
+          },
+          title:{display:true, text:'Date & time (12-hour)', color:'#9fb0d9'}},
+        v:  ax('Voltage (V)', '#22d3ee', 3, v => v.toFixed(2)),
+        i:  ax('Current (A)', '#a78bfa', 2, v => v.toFixed(2)),
+        t:  ax('Temp (°C)', '#fb923c', 2, v => v.toFixed(1)),
+        cyc:ax('Cycles', '#a3e635', 2, v => Number.isInteger(v) ? v : '')
+      }}});
+  }
+  const last = S.hist[S.hist.length-1];
+  $('graphTime').textContent = !last ? 'Waiting for data...'
+    : S.chartLive ? `Live • latest sample ${fmtDT(new Date(last.t))} • ${S.hist.length} saved samples • cycle = charge to ${CYCLE_HIGH}%+ then discharge to ${CYCLE_LOW}%`
+                  : `Device offline • showing saved history, last sample ${fmtDT(new Date(last.t))} • ${S.hist.length} saved samples`;
+  chartFrame(performance.now(), true);
+}
+
+// The time window slides with the clock and each panel's Y range eases toward the visible
+// data, so the waves flow continuously. Long windows move very little, so they refresh slower.
+let _lastFrame = 0;
+function chartFrame(ts, force){
+  const c = S.chart, win = S.cfg.win;
+  const gap = (win === 0 || win >= 360) ? 1000 : (win >= 60 ? 100 : 33);
+  if(c && (force || ts - _lastFrame >= gap)){
+    _lastFrame = ts;
+    const {lo, hi} = chartRange();
+    c.options.scales.x.min = lo; c.options.scales.x.max = hi;
+    if(S.chartLive) c.data.datasets.forEach(d => { const p = d.data[d.data.length-1]; if(p && p.live) p.x = hi; });
+    fitAxes(c, lo, hi, force === true);
+    c.update('none');
+  }
+  if(force !== true) requestAnimationFrame(chartFrame);
+}
+
+// ---------- AI ----------
+function stats(arr){ const a = arr.filter(isFinite); if(!a.length) return null;
+  return {avg:+(a.reduce((s,x)=>s+x,0)/a.length).toFixed(2), min:+Math.min(...a).toFixed(2), max:+Math.max(...a).toFixed(2), n:a.length}; }
+
+function buildPayload(){
+  const L = S.feeds[S.feeds.length-1], st = L.st || {};
+  const rated = num(S.cfg.rated), cap = lastValid('cap');
+  const spanH = (L.t - S.feeds[0].t) / 3600000;
+  const chgI = S.feeds.filter(f=>f.i>0).map(f=>f.i), disI = S.feeds.filter(f=>f.i<0).map(f=>-f.i);
+  const temps = S.feeds.map(f=>f.temp);
+  return {
+    battery_type: S.cfg.type,
+    typical_cycle_life_of_type: CYCLE_LIFE[S.cfg.type] || 'unknown',
+    cells_in_series: S.cfg.cells,
+    rated_capacity_mAh: rated,
+    measured_capacity_mAh: cap > 0 ? cap : null,
+    charge_sessions_count: lastValid('cyc'),
+    total_charged_mAh: isFinite(st.tmah) ? st.tmah : null,
+    equivalent_full_cycles: isFinite(lastValid('cyc')) ? +lastValid('cyc').toFixed(2) : ((isFinite(st.tmah) && rated > 0) ? +(st.tmah/rated).toFixed(2) : null),
+    total_charging_time_hours: +(lastValid('tmin')/60).toFixed(2),
+    last_charge_session_minutes: isFinite(st.lmin) ? st.lmin : null,
+    latest: {pack_voltage_V:L.v, per_cell_V:+(L.v/S.cfg.cells).toFixed(3), current_A:L.i, temperature_C:lastValid('temp'), charging:L.chg},
+    history_window_hours: +spanH.toFixed(2),
+    history_samples: S.feeds.length,
+    temperature_C: stats(temps),
+    samples_above_45C: temps.filter(t=>t>=45).length,
+    charge_current_A: stats(chgI),
+    discharge_current_A: stats(disI),
+    charge_C_rate_max: (chgI.length && rated>0) ? +(Math.max(...chgI)*1000/rated).toFixed(2) : null,
+    discharge_C_rate_max: (disI.length && rated>0) ? +(Math.max(...disI)*1000/rated).toFixed(2) : null,
+    pack_voltage_V: stats(S.feeds.map(f=>f.v))
+  };
+}
+
+async function runAI(){
+  const out = $('aiOut');
+  if(!AI_URL || AI_URL.includes('PASTE_WORKER_URL')){
+    out.innerHTML = '<div class="msg err">AI server address (AI_URL) is not set in the code yet.</div>';
+    return;
+  }
+  if(!(num(S.cfg.rated) > 0)){
+    out.innerHTML = '<div class="msg err">Enter the battery rated capacity (mAh) in Settings.</div>';
+    $('settings').open = true;
+    return;
+  }
+  if(!S.feeds.length){
+    out.innerHTML = '<div class="msg err">No data received from ThingSpeak yet.</div>';
+    return;
+  }
+
+  const btn = $('aiBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analysing...';
+
+
+
+  try{
+    const r = await fetch(AI_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(buildPayload())
+    });
+
+    const j = await r.json();
+    if(!r.ok) throw new Error(j?.error?.message || ('OpenAI HTTP ' + r.status));
+
+    const txt = (j.choices?.[0]?.message?.content || '')
+      .replace(/```json|```/g,'')
+      .trim();
+
+    const a = JSON.parse(txt);
+
+    // Robust fallback: if the model still omits numeric aging values,
+    // calculate conservative estimates locally from the real telemetry.
+    const rated = num(S.cfg.rated);
+    const cap = lastValid('cap');
+    const cycles = lastValid('cyc');
+    const temp = lastValid('temp');
+
+    let soh = num(a.soh_percent);
+    // If measured capacity is absent, never trust a model's zero as measured SOH.
+    // Use a transparent telemetry-based estimate from cycle count and temperature.
+    const lifeText = CYCLE_LIFE[S.cfg.type] || '500-1000';
+    const lifeMatch = lifeText.match(/(\d+)\s*-\s*(\d+)/);
+    const cycleLife = lifeMatch ? (Number(lifeMatch[1]) + Number(lifeMatch[2])) / 2 : 750;
+    const usedCycles = isFinite(cycles) ? Math.max(0, cycles) : 0;
+    if(cap > 0 && rated > 0){
+      soh = Math.max(0, Math.min(100, cap / rated * 100));
+    } else if(!isFinite(soh) || soh <= 0){
+      soh = 96 - (usedCycles / cycleLife) * 16;
+      if(isFinite(temp) && temp > 40) soh -= Math.min(5, (temp - 40) * 0.25);
+      soh = Math.max(80, Math.min(100, soh));
+      a.summary = 'Estimated from available telemetry only; measured capacity is unavailable, so this is not a measured SOH.';
+    }
+
+    a.soh_percent = +soh.toFixed(1);
+    // Capacity fade is an estimate when no measured capacity exists.
+    a.capacity_fade_percent = (cap > 0 && rated > 0)
+      ? +(100 - soh).toFixed(1)
+      : (isFinite(num(a.capacity_fade_percent)) && num(a.capacity_fade_percent) > 0
+          ? +num(a.capacity_fade_percent).toFixed(1) : +(100 - soh).toFixed(1));
+
+    if(!isFinite(num(a.estimated_remaining_cycles)) || num(a.estimated_remaining_cycles) <= 0){
+      a.estimated_remaining_cycles = Math.max(0, Math.round((soh - 80) / 20 * cycleLife));
+    }
+
+    if(!isFinite(num(a.estimated_remaining_life_months)) || num(a.estimated_remaining_life_months) <= 0){
+      const remaining = Math.max(0, num(a.estimated_remaining_cycles));
+      const monthsPerCycle = usedCycles > 0 ? 1 / Math.max(usedCycles / 6, 0.1) : 1;
+      a.estimated_remaining_life_months = Math.max(1, Math.round(remaining * monthsPerCycle));
+    }
+
+    if(!a.confidence) a.confidence = cap > 0 ? 'high' : (S.feeds.length >= 50 ? 'medium' : 'low');
+
+    if(!Array.isArray(a.key_factors)) a.key_factors = [];
+    if(!Array.isArray(a.recommendations)) a.recommendations = [];
+
+    if(cap <= 0){
+      a.key_factors.unshift('Measured capacity is unavailable. SOH, capacity fade, cycles and life are estimates from available telemetry and typical battery-cycle assumptions, not measured aging results.');
+    }
+
+    renderAI(a);
+
+  }catch(e){
+    out.innerHTML = '';
+    const d = document.createElement('div');
+    d.className = 'msg err';
+    d.textContent = 'AI prediction failed: ' + e.message;
+    out.appendChild(d);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Predict';
+  }
+}
+
+// Fixed health status rule (temperature first, then SOH)
+function healthStatus(temp, soh){
+  if(!isFinite(soh)) soh = 0;
+  if(isFinite(temp) && temp > 45)
+    return {s:'Replace', c:'var(--hot)', why:`Battery temperature ${temp.toFixed(1)} °C is above 45 °C`};
+  if(isFinite(temp) && temp > 40)
+    return {s:'Poor', c:'var(--orange)', why:`Battery temperature ${temp.toFixed(1)} °C is above 40 °C`};
+  if(soh >= 85)
+    return {s:'Good', c:'var(--ok)', why:`Temperature normal, estimated SOH ${soh.toFixed(0)}%`};
+  return {s:'Fair', c:'var(--warm)', why:`Temperature normal, estimated SOH ${soh.toFixed(0)}% (below 85%)`};
+}
+
+function renderAI(a){
+  const out = $('aiOut');
+  out.innerHTML = '';
+  const body = document.createElement('div');
+  body.className = 'ai-body';
+
+  const voltage = lastValid('v');
+  const current = lastValid('i');
+  const temperature = lastValid('temp');
+  const cycles = lastValid('cyc');
+  const cap = lastValid('cap');
+  const deviceSoc = liveSocFromDevice();
+  const rawSoc = isFinite(deviceSoc) ? deviceSoc : (isFinite(S.soc) ? S.soc : updateCoulombSoc());
+  const soc = Math.max(0, Math.min(100, num(rawSoc)));
+  const color = soc >= 60 ? 'var(--ok)' : (soc >= 25 ? 'var(--warm)' : 'var(--hot)');
+
+  // Never display SOH/health-derived content; retain the other useful prediction outputs.
+  const cleanText = value => String(value ?? '')
+    .replace(/\bSOH\b/ig, '')
+    .replace(/state\s+of\s+health/ig, '')
+    .replace(/capacity\s*fade(?:\s*percent)?/ig, '')
+    .replace(/estimated\s+health/ig, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
+    .trim();
+  const safeList = values => (Array.isArray(values) ? values : [])
+    .map(cleanText)
+    .filter(t => t && !/\bSOH\b|state\s+of\s+health|capacity\s*fade/i.test(t));
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:center"><div class="gauge" style="--p:${soc};--gc:${color}"><div><div><b>${fmt(soc,0)}%</b><small>state of charge (SOC)</small></div></div></div></div>
+    <div class="ai-metrics">
+      <div><div class="k">Current SOC</div><div class="v">${fmt(soc,1)}%</div></div>
+      <div><div class="k">Voltage</div><div class="v">${fmt(voltage,2)} V</div></div>
+      <div><div class="k">Current</div><div class="v">${fmt(current,2)} A</div></div>
+      <div><div class="k">Temperature</div><div class="v">${fmt(temperature,1)} °C</div></div>
+      <div><div class="k">Cycle count</div><div class="v">${fmt(cycles,2)}</div></div>
+      <div><div class="k">Measured capacity</div><div class="v">${fmt(cap,0)} mAh</div></div>
+      <div><div class="k">Remaining cycles</div><div class="v">${isFinite(num(a.estimated_remaining_cycles)) ? Math.round(num(a.estimated_remaining_cycles)) : '--'}</div></div>
+      <div><div class="k">Life left</div><div class="v">${fmt(num(a.estimated_remaining_life_months),0)} months</div></div>
+      <div><div class="k">Confidence</div><div class="v">${cleanText(a.confidence || 'low')}</div></div>
+    </div>
+    <p class="summary" id="aiSum"></p>
+    <div class="ai-lists"><div><h3>AI reasoning / key factors</h3><ul id="aiF"></ul></div><div><h3>Recommendations</h3><ul id="aiR"></ul></div></div>
+    <p class="note">Prediction updated ${new Date().toLocaleString()} · ${S.cfg.model}</p>`;
+  out.appendChild(body);
+
+  const summary = cleanText(a.summary || 'Prediction is based on the latest available battery telemetry.');
+  $('aiSum').textContent = summary || 'Prediction is based on the latest available battery telemetry.';
+  safeList(a.key_factors).forEach(t => {
+    const li = document.createElement('li'); li.textContent = t; $('aiF').appendChild(li);
+  });
+  safeList(a.recommendations).forEach(t => {
+    const li = document.createElement('li'); li.textContent = t; $('aiR').appendChild(li);
+  });
+}
+function setAutoAi(){
+  clearInterval(S.aiTimer);
+  if(S.cfg.autoAi) S.aiTimer = setInterval(runAI, 30*60*1000);
+}
+
+// ---------- Init ----------
+$('saveBtn').onclick = () => { readForm(); saveCfg(); loadHist(); S.histFetched = false; fetchData(); $('settings').open = !S.cfg.chId; };
+$('aiBtn').onclick = runAI;
+$('autoAi').onchange = e => { S.cfg.autoAi = e.target.checked; saveCfg(); setAutoAi(); };
+
+S.cfg = loadCfg();
+fillForm();
+$('win').value = String(S.cfg.win === 0 ? 0 : (S.cfg.win || 15));
+$('win').onchange = e => { const v = parseInt(e.target.value); S.cfg.win = isNaN(v) ? 15 : v; saveCfg(); drawChart(); };
+loadHist();
+drawChart();
+$('clearHist').onclick = () => {
+  if(!confirm('Delete the saved graph history and cycle count stored in this browser?')) return;
+  try{ localStorage.removeItem(histKey()); }catch(e){}
+  loadHist(); S.histFetched = false; drawChart(); fetchData();
+};
+requestAnimationFrame(chartFrame);
+$('settings').open = !S.cfg.chId || !S.cfg.rated;
+fetchData();
+S.poll = setInterval(fetchData, 15000);
+setInterval(tick, 1000);
+setAutoAi();
+}
+
+// This is only a casual front-end gate. Credentials are visible in page source;
+// use server-side authentication for real access control.
+(function setupLogin(){
+  const LOGIN_USER = 'admin1234';
+  const LOGIN_PASS = 'admin1234';
+  const form = document.getElementById('loginForm');
+  form.addEventListener('submit', function(event){
+    event.preventDefault();
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    if(username === LOGIN_USER && password === LOGIN_PASS){
+      document.body.classList.add('authenticated');
+      document.getElementById('loginError').textContent = '';
+      form.reset();
+      initDashboard();
+    } else {
+      document.getElementById('loginError').textContent = 'Incorrect username or password.';
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('loginPassword').focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
